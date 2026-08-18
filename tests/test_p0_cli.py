@@ -265,42 +265,6 @@ def test_browser_cookie_import_without_cookie_exits_one(monkeypatch, capsys):
     assert "No cookies found" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize(
-    ("platform", "manual_key"),
-    [("twitter", "twitter-cookies"), ("xiaohongshu", "xhs-cookies")],
-)
-def test_browser_cookie_import_rejects_cookie_editor_only_platforms(
-    monkeypatch, capsys, platform, manual_key
-):
-    """Twitter/XHS browser stores are never opened by the automatic importer."""
-    import agent_reach.cookie_extract as cookie_extract
-
-    monkeypatch.setattr(cli, "_configure_logging", lambda _verbose=False: None)
-    monkeypatch.setattr(
-        cookie_extract,
-        "configure_from_browser",
-        lambda *_args, **_kwargs: pytest.fail("browser cookie reader must not run"),
-    )
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "agent-reach",
-            "configure",
-            "--from-browser",
-            "chrome",
-            "--platform",
-            platform,
-        ],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
-
-    assert exc.value.code == 2
-    assert manual_key in capsys.readouterr().err
-
-
 def test_install_does_not_implicitly_read_browser_cookies(monkeypatch, tmp_path, capsys):
     """Installing a cookie-backed channel prints an explicit command instead."""
     import agent_reach.config as config_module
@@ -314,7 +278,6 @@ def test_install_does_not_implicitly_read_browser_cookies(monkeypatch, tmp_path,
     )
     monkeypatch.setattr(cli, "_install_system_deps", lambda: None)
     monkeypatch.setattr(cli, "_install_mcporter", lambda: None)
-    monkeypatch.setattr(cli, "_install_twitter_deps", lambda: None)
     monkeypatch.setattr(cli, "_install_skill", lambda: None)
     monkeypatch.setattr(
         "agent_reach.doctor.check_all",
@@ -337,12 +300,12 @@ def test_install_does_not_implicitly_read_browser_cookies(monkeypatch, tmp_path,
             system=True,
             safe=False,
             dry_run=False,
-            channels="twitter",
+            channels="xueqiu",
         )
     )
 
     output = capsys.readouterr().out
-    assert "configure twitter-cookies" in output
+    assert "configure --from-browser chrome --platform xueqiu" in output
     assert "Importing cookies from browser" not in output
 
 
@@ -411,128 +374,6 @@ def test_install_rejects_unknown_channel_before_side_effects(
     assert "twiter" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("sync_legacy", [False, True])
-def test_manual_twitter_cookie_legacy_copies_are_opt_in(
-    monkeypatch, capsys, sync_legacy
-):
-    """The source-of-truth config is always written; legacy copies are optional."""
-    import shutil
-
-    import agent_reach.config as config_module
-    import agent_reach.cookie_extract as cookie_extract
-
-    calls = []
-    config = _MemoryConfig()
-    monkeypatch.setattr(config_module, "Config", lambda: config)
-    monkeypatch.setattr(shutil, "which", lambda _name: None)
-    monkeypatch.setattr(
-        cookie_extract,
-        "_sync_xfetch_session",
-        lambda auth, ct0: calls.append(("xfetch", auth, ct0)) or True,
-    )
-    monkeypatch.setattr(
-        cookie_extract,
-        "_sync_bird_env",
-        lambda auth, ct0: calls.append(("bird", auth, ct0)) or True,
-    )
-
-    cli._cmd_configure(
-        Namespace(
-            from_browser=None,
-            key="twitter-cookies",
-            value=["auth-value", "ct0-value"],
-            sync_legacy_twitter=sync_legacy,
-        )
-    )
-
-    assert config.get("twitter_auth_token") == "auth-value"
-    assert config.get("twitter_ct0") == "ct0-value"
-    assert bool(calls) is sync_legacy
-    output = capsys.readouterr().out
-    assert ("Legacy copies written" in output) is sync_legacy
-
-
-@pytest.mark.parametrize(
-    ("xfetch_ok", "bird_ok", "written_count", "failed_count"),
-    [
-        (True, True, 2, 0),
-        (True, False, 1, 1),
-        (False, True, 1, 1),
-        (False, False, 0, 2),
-    ],
-)
-def test_legacy_twitter_sync_reports_only_confirmed_results(
-    monkeypatch,
-    capsys,
-    xfetch_ok,
-    bird_ok,
-    written_count,
-    failed_count,
-):
-    import shutil
-
-    import agent_reach.config as config_module
-    import agent_reach.cookie_extract as cookie_extract
-
-    monkeypatch.setattr(config_module, "Config", _MemoryConfig)
-    monkeypatch.setattr(shutil, "which", lambda _name: None)
-    monkeypatch.setattr(
-        cookie_extract,
-        "_sync_xfetch_session",
-        lambda *_args: xfetch_ok,
-    )
-    monkeypatch.setattr(
-        cookie_extract,
-        "_sync_bird_env",
-        lambda *_args: bird_ok,
-    )
-
-    cli._cmd_configure(
-        Namespace(
-            from_browser=None,
-            key="twitter-cookies",
-            value=["auth-value", "ct0-value"],
-            sync_legacy_twitter=True,
-        )
-    )
-
-    output = capsys.readouterr().out
-    assert output.count("  written:") == written_count
-    assert output.count("  failed:") == failed_count
-
-
-def test_twitter_configure_never_runs_upstream_browser_fallback(
-    monkeypatch, capsys
-):
-    import shutil
-
-    import agent_reach.config as config_module
-
-    monkeypatch.setattr(config_module, "Config", _MemoryConfig)
-    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/twitter")
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail(
-            "configure must not execute twitter status"
-        ),
-    )
-
-    cli._cmd_configure(
-        Namespace(
-            from_browser=None,
-            key="twitter-cookies",
-            value=["auth-value", "ct0-value"],
-            sync_legacy_twitter=False,
-        )
-    )
-
-    output = capsys.readouterr().out
-    assert "已保存" in output
-    assert "未实时验证" in output
-    assert "Twitter access works" not in output
-
-
 def test_doctor_never_installs_or_updates_skill(monkeypatch, capsys):
     """A diagnostic command is read-only and must not mutate agent instructions."""
     import agent_reach.config as config_module
@@ -598,97 +439,6 @@ def test_watch_uses_read_only_config(monkeypatch, capsys):
 
 def _docker_result(args, returncode=0, stdout="", stderr=""):
     return subprocess.CompletedProcess(args, returncode, stdout, stderr)
-
-
-def test_xhs_docker_cookie_copy_succeeds_without_local_os_binding_error(
-    monkeypatch, capsys
-):
-    """The Docker branch must be able to unlink its temporary file."""
-    calls = []
-
-    def fake_which(name):
-        if name == "docker":
-            return "/usr/bin/docker"
-        return None
-
-    def fake_run(args, **_kwargs):
-        calls.append(args)
-        if args[1] == "ps":
-            return _docker_result(args, stdout="xiaohongshu-mcp\n")
-        if args[1:3] == ["exec", "xiaohongshu-mcp"]:
-            return _docker_result(args, stdout="/app/data/cookies.json\n")
-        return _docker_result(args)
-
-    monkeypatch.setattr("shutil.which", fake_which)
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    cli._configure_xhs_cookies("web_session=xhs_secret")
-
-    output = capsys.readouterr().out
-    assert "Cookies written to xiaohongshu-mcp:/app/data/cookies.json" in output
-    assert "cannot access local variable 'os'" not in output
-    assert any(call[1] == "cp" for call in calls)
-
-
-def test_xhs_docker_cookie_copy_always_removes_temporary_file(monkeypatch, capsys):
-    """Failed docker cp must not leave a plaintext cookie file behind."""
-    copied_from = []
-
-    def fake_which(name):
-        if name == "docker":
-            return "/usr/bin/docker"
-        return None
-
-    def fake_run(args, **_kwargs):
-        if args[1] == "ps":
-            return _docker_result(args, stdout="xiaohongshu-mcp\n")
-        if args[1:3] == ["exec", "xiaohongshu-mcp"]:
-            return _docker_result(args, stdout="/app/data/cookies.json\n")
-        if args[1] == "cp":
-            copied_from.append(args[2])
-            return _docker_result(args, returncode=1, stderr="copy failed")
-        return _docker_result(args)
-
-    monkeypatch.setattr("shutil.which", fake_which)
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    cli._configure_xhs_cookies("web_session=xhs_secret")
-
-    assert copied_from
-    assert not Path(copied_from[0]).exists()
-    assert "Failed to copy cookies: copy failed" in capsys.readouterr().out
-
-
-def test_xhs_docker_restart_failure_returns_failure(monkeypatch, capsys):
-    """Cookies are not active until the container successfully restarts."""
-
-    def fake_which(name):
-        return "/usr/bin/docker" if name == "docker" else None
-
-    def fake_run(args, **_kwargs):
-        if args[1] == "ps":
-            return _docker_result(args, stdout="xiaohongshu-mcp\n")
-        if args[1:3] == ["exec", "xiaohongshu-mcp"]:
-            return _docker_result(args, stdout="/app/data/cookies.json\n")
-        if args[1] == "restart":
-            return _docker_result(
-                args,
-                returncode=1,
-                stderr="no such container",
-            )
-        return _docker_result(args)
-
-    monkeypatch.setattr("shutil.which", fake_which)
-    monkeypatch.setattr(subprocess, "run", fake_run)
-
-    result = cli._configure_xhs_cookies("web_session=xhs_secret")
-
-    output = capsys.readouterr().out
-    assert result is False
-    assert "Could not restart container" in output
-    assert "no such container" in output
-    assert "Restart manually" in output
-    assert "done" not in output
 
 
 def test_system_install_uses_ytdlp_first_user_config(
@@ -1131,19 +881,14 @@ def test_mcporter_install_uses_resolved_windows_command_paths(monkeypatch):
     ]
 
 
-def test_server_xhs_install_never_recommends_qr_or_browser_extraction(
-    monkeypatch, capsys
-):
-    """Project policy requires an explicit Cookie-Editor export for XHS."""
-    monkeypatch.setattr(cli, "_detect_environment", lambda: "server")
+def test_xhs_install_uses_opencli_only(monkeypatch):
+    """XiaoHongShu install routes to OpenCLI only (high-risk backends removed)."""
+    calls = []
+    monkeypatch.setattr(cli, "_install_opencli_deps", lambda: calls.append("opencli"))
 
     cli._install_xhs_deps()
 
-    output = capsys.readouterr().out
-    assert "Cookie-Editor" in output
-    assert "configure xhs-cookies" in output
-    assert "扫码" not in output
-    assert "二维码" not in output
+    assert calls == ["opencli"]
 
 
 def test_configure_usage_does_not_recommend_blocked_twitter_browser_import(
@@ -1180,27 +925,6 @@ def test_configure_missing_value_exits_one(monkeypatch, capsys):
 
     assert exc.value.code == 1
     assert "Missing value for github-token" in capsys.readouterr().out
-
-
-def test_twitter_cookie_parse_failure_exits_one(monkeypatch, capsys):
-    """Malformed Twitter cookie input must not produce a successful CLI status."""
-    import agent_reach.config as config_module
-
-    config = _MemoryConfig()
-    monkeypatch.setattr(config_module, "Config", lambda: config)
-    monkeypatch.setattr(cli, "_configure_logging", lambda _verbose=False: None)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["agent-reach", "configure", "twitter-cookies", "not-a-cookie"],
-    )
-
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
-
-    assert exc.value.code == 1
-    assert "Could not find auth_token and ct0" in capsys.readouterr().out
-    assert config.data == {}
 
 
 def test_profile_rejects_unsupported_browser_before_cookie_backend(
@@ -1293,26 +1017,6 @@ def test_install_dry_run_does_not_create_agent_reach_directory(
     )
 
     assert not (isolated_home / ".agent-reach").exists()
-
-
-def test_uninstall_warns_about_opt_in_legacy_credential_copies(
-    isolated_home, capsys
-):
-    xfetch = isolated_home / ".config" / "xfetch" / "session.json"
-    bird = isolated_home / ".config" / "bird" / "credentials.env"
-    xfetch.parent.mkdir(parents=True)
-    bird.parent.mkdir(parents=True)
-    xfetch.write_text("{}", encoding="utf-8")
-    bird.write_text("AUTH_TOKEN=secret\n", encoding="utf-8")
-
-    cli._cmd_uninstall(Namespace(dry_run=True, keep_config=False))
-
-    output = capsys.readouterr().out
-    assert str(xfetch) in output
-    assert str(bird) in output
-    assert "不会自动删除" in output
-    assert xfetch.exists()
-    assert bird.exists()
 
 
 def test_uninstall_preserves_mcporter_entries_without_agent_reach_provenance(

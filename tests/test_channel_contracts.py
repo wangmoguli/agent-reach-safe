@@ -85,15 +85,15 @@ def test_ordered_backends_contract(tmp_path):
 
 def test_ordered_backends_override_moves_backend_to_front():
     """Config key <channel>_backend promotes the named backend to front."""
-    from agent_reach.channels.twitter import TwitterChannel
+    from agent_reach.channels.bilibili import BilibiliChannel
 
-    ch = TwitterChannel()
-    ordered = ch.ordered_backends({"twitter_backend": "bird"})
-    assert ordered[0] == "bird CLI (legacy)"
+    ch = BilibiliChannel()
+    ordered = ch.ordered_backends({"bilibili_backend": "OpenCLI"})
+    assert ordered[0] == "OpenCLI"
     assert sorted(ordered) == sorted(ch.backends)
 
     # Unknown override is ignored — never hides working backends
-    ordered_unknown = ch.ordered_backends({"twitter_backend": "no-such-tool"})
+    ordered_unknown = ch.ordered_backends({"bilibili_backend": "no-such-tool"})
     assert ordered_unknown == list(ch.backends)
 
 
@@ -166,7 +166,6 @@ def test_youtube_ok_when_deno_installed(monkeypatch):
 def test_channel_can_handle_contract():
     url_samples = {
         "github": "https://github.com/panniantong/agent-reach",
-        "twitter": "https://x.com/user/status/1",
         "youtube": "https://youtube.com/watch?v=abc",
         "reddit": "https://reddit.com/r/python",
         "facebook": "https://www.facebook.com/zuck",

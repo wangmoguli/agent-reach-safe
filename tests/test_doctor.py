@@ -225,7 +225,6 @@ def test_real_doctor_path_is_zero_write_and_never_runs_risky_status_commands(
     import agent_reach.backends.opencli as opencli
     import agent_reach.channels.bilibili as bilibili
     import agent_reach.channels.v2ex as v2ex
-    import agent_reach.channels.xiaohongshu as xiaohongshu
     import agent_reach.channels.xueqiu as xueqiu
     from agent_reach import cli
 
@@ -243,9 +242,6 @@ def test_real_doctor_path_is_zero_write_and_never_runs_risky_status_commands(
         "bili",
         "ffmpeg",
         "mcporter",
-        "twitter",
-        "rdt",
-        "xhs",
         "deno",
         "node",
     }
@@ -292,9 +288,6 @@ def test_real_doctor_path_is_zero_write_and_never_runs_risky_status_commands(
         opencli, "_unpacked_extension_files_present", lambda: False
     )
     monkeypatch.setattr(bilibili, "_search_api_ok", lambda: False)
-    monkeypatch.setattr(
-        xiaohongshu, "_mcp_service_reachable", lambda timeout=3: False
-    )
     monkeypatch.setattr(v2ex, "_get_json", lambda _url: [])
     monkeypatch.setattr(
         xueqiu,
@@ -315,7 +308,6 @@ def test_real_doctor_path_is_zero_write_and_never_runs_risky_status_commands(
     assert payload["github"]["status"] == "warn"
     assert payload["github"]["active_backend"] is None
     for channel_name in (
-        "twitter",
         "reddit",
         "facebook",
         "instagram",

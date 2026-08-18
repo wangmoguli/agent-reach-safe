@@ -8,7 +8,6 @@ from agent_reach.channels.github import GitHubChannel
 from agent_reach.channels.instagram import InstagramChannel
 from agent_reach.channels.linkedin import LinkedInChannel
 from agent_reach.channels.reddit import RedditChannel
-from agent_reach.channels.twitter import TwitterChannel
 from agent_reach.channels.v2ex import V2EXChannel
 from agent_reach.channels.xiaohongshu import XiaoHongShuChannel
 from agent_reach.channels.xiaoyuzhou import XiaoyuzhouChannel
@@ -20,8 +19,6 @@ from agent_reach.utils.url import host_matches
 @pytest.mark.parametrize(
     ("channel", "valid_url"),
     [
-        (TwitterChannel(), "https://mobile.twitter.com/user/status/1"),
-        (TwitterChannel(), "https://X.COM./user/status/1"),
         (XiaoHongShuChannel(), "https://www.xiaohongshu.com/explore/1"),
         (XiaoHongShuChannel(), "https://xhslink.com/a/1"),
         (BilibiliChannel(), "https://www.bilibili.com/video/BV1"),
@@ -36,11 +33,6 @@ def test_credential_channels_accept_exact_hosts_and_subdomains(channel, valid_ur
 @pytest.mark.parametrize(
     ("channel", "malicious_url"),
     [
-        (TwitterChannel(), "https://x.com.evil.test/user/status/1"),
-        (TwitterChannel(), "https://notx.com/user/status/1"),
-        (TwitterChannel(), "https://x.com@evil.test/user/status/1"),
-        (TwitterChannel(), "https://user:pass@x.com/user/status/1"),
-        (TwitterChannel(), "ftp://x.com/user/status/1"),
         (XiaoHongShuChannel(), "https://xiaohongshu.com.evil.test/explore/1"),
         (XiaoHongShuChannel(), "https://xiaohongshu.com@evil.test/explore/1"),
         (BilibiliChannel(), "https://bilibili.com.evil.test/video/BV1"),

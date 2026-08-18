@@ -6,10 +6,10 @@ description: >
   web for X", "see what people say about X", "look this up".
 
   Also MUST USE when user mentions any platform or shares any URL/link:
-  Twitter/X, Reddit, Facebook, Instagram, YouTube, GitHub, Bilibili, XiaoHongShu,
+  Reddit, Facebook, Instagram, YouTube, GitHub, Bilibili, XiaoHongShu,
   Xiaoyuzhou Podcast, LinkedIn/jobs/recruiting, V2EX, Xueqiu (stocks), RSS.
 
-  15 platforms, multi-backend routing (OpenCLI / per-platform CLIs / APIs).
+  14 platforms, multi-backend routing (OpenCLI / per-platform CLIs / APIs).
   Zero config for 6 channels. Run `agent-reach doctor --json` to see which
   backend serves each platform right now.
 
@@ -22,13 +22,13 @@ metadata:
 
 # Agent Reach — internet capability router
 
-15 platforms, multiple backends each. **When this skill exists, use it for
+14 platforms, multiple backends each. **When this skill exists, use it for
 these platforms — do not invent your own approach.**
 
 ## Standing rules (apply for the whole session)
 
 1. **Health-check before acting**: for multi-backend/login-backed platforms (XiaoHongShu /
-   Reddit / Bilibili / Twitter / Facebook / Instagram), run `agent-reach doctor --json` first.
+   Reddit / Bilibili / Facebook / Instagram), run `agent-reach doctor --json` first.
    Use a populated `active_backend`; `active_backend: null` means Doctor deliberately skipped a
    live probe to avoid browser-cookie reads or remote writes, not that no backend exists. Only when
    the user's task requires that platform, run the reference's read-only command to verify it.
@@ -37,7 +37,7 @@ these platforms — do not invent your own approach.**
 3. **On failure, follow the retry chains in references/** — never guess
    commands.
 4. **For broad research tasks**: combine platforms (Exa for web search +
-   Twitter/Reddit for discussions + XiaoHongShu/Bilibili for Chinese
+   Reddit for discussions + XiaoHongShu/Bilibili for Chinese
    perspectives), collect in parallel, then synthesize.
 5. **Watch versions for the user**: after finishing a substantial
    multi-platform task, run `agent-reach check-update` (fast, one API call).
@@ -51,7 +51,7 @@ these platforms — do not invent your own approach.**
 | User intent | Category | Details |
 |---------|------|---------|
 | Web / code search | search | [references/search.md](references/search.md) |
-| XiaoHongShu / Twitter / Bilibili / V2EX / Reddit / Facebook / Instagram | social | [references/social.md](references/social.md) |
+| XiaoHongShu / Bilibili / V2EX / Reddit / Facebook / Instagram | social | [references/social.md](references/social.md) |
 | Jobs / LinkedIn | career | [references/career.md](references/career.md) |
 | GitHub / code | dev | [references/dev.md](references/dev.md) |
 | Web pages / articles / RSS | web | [references/web.md](references/web.md) |
@@ -82,24 +82,13 @@ bili search "query" --type video -n 5
 
 ## Login-backed platforms (pick by doctor's active_backend)
 
-Twitter boundary: cookies saved by `agent-reach configure twitter-cookies`
-are used only by `doctor` to check whether explicit credentials are present.
-`doctor` does not run `twitter status` or configure the current shell. Before
-calling `twitter` directly, explicitly provide `TWITTER_AUTH_TOKEN` and
-`TWITTER_CT0` in the child-process environment without logging their values.
-
 XiaoHongShu boundary: Agent Reach must not log the user in or read browser
 cookies. OpenCLI may use only an existing Chrome session explicitly controlled
-by the user. If none exists, do not automate login; use a manual Cookie-Editor
-export with xiaohongshu-mcp or a legacy tool instead.
+by the user. If none exists, do not automate login.
 
 ```bash
-# Twitter search (twitter-cli preferred; retry chain in social.md)
-twitter search "query" -n 10
-
-# Reddit (NO zero-config path — OpenCLI or rdt-cli, login required)
+# Reddit (NO zero-config path — OpenCLI, login required)
 opencli reddit search "query" -f yaml   # desktop
-rdt search "query" --limit 10            # legacy/server
 
 # XiaoHongShu (desktop prefers OpenCLI)
 opencli xiaohongshu search "query" -f yaml
@@ -137,7 +126,7 @@ common cases; references hold per-backend command groups, caveats, retry
 chains — note: reference docs are written in Chinese, commands are universal):
 
 - [Search](references/search.md) — Exa AI search
-- [Social](references/social.md) — XiaoHongShu, Twitter, Bilibili, V2EX, Reddit, Facebook, Instagram (multi-backend/login-backed groups)
+- [Social](references/social.md) — XiaoHongShu, Bilibili, V2EX, Reddit, Facebook, Instagram (multi-backend/login-backed groups)
 - [Career](references/career.md) — LinkedIn
 - [Dev](references/dev.md) — GitHub CLI
 - [Web](references/web.md) — Jina Reader, RSS

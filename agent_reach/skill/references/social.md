@@ -1,12 +1,11 @@
 # 社交媒体 & 社区
 
-小红书、Twitter/X、B站、V2EX、Reddit、Facebook、Instagram。
+小红书、B站、V2EX、Reddit、Facebook、Instagram。
 
-## 小红书 / XiaoHongShu（多后端）
+## 小红书 / XiaoHongShu（OpenCLI）
 
-小红书有三个后端，**先跑 `agent-reach doctor --json` 看 xiaohongshu 的 `active_backend` 是哪个**，再用对应命令组。
-
-### 后端 A：OpenCLI（桌面首选）
+小红书只保留 OpenCLI 后端（xhs-cli 与 xiaohongshu-mcp 已作为高风险后端移除）。
+先跑 `agent-reach doctor --json` 看 xiaohongshu 的 `active_backend`。
 
 ```bash
 # 搜索笔记
@@ -27,117 +26,19 @@ opencli xiaohongshu user USER_ID -f yaml
 
 > 要求 Chrome 打开且装了 OpenCLI 扩展。OpenCLI 只使用用户已经存在且明确控制
 > 的 Chrome 会话；Agent Reach 不替用户登录，也不读取浏览器 Cookie。
-> `agent-reach configure xhs-cookies` 不会把 Cookie 注入 OpenCLI。
-> 如果没有现成会话，不要自动登录；改走后端 B/C，并按对应的
-> Cookie-Editor 手工导出流程配置。
-
-### 后端 B：xiaohongshu-mcp（服务器场景）
-
-```bash
-# 认证前先让用户用 Cookie-Editor 手工导出，再显式导入
-agent-reach configure xhs-cookies
-
-# 只读检查当前状态
-mcporter call xiaohongshu.check_login_status --timeout 120000
-
-# 搜索
-mcporter call xiaohongshu.search_feeds keyword="query" --timeout 120000
-
-# 笔记详情+评论（feed_id 和 xsec_token 从搜索结果取）
-mcporter call xiaohongshu.get_feed_detail feed_id="..." xsec_token="..." --timeout 120000
-```
-
-> 首次调用会自动下载约 150MB 无头浏览器，务必带 `--timeout 120000`。
-> 认证只走 Cookie-Editor 手工导出；导入后先运行 `check_login_status`。
-> 该显式命令会保存/导入用户提供的 xiaohongshu.com 同域 Cookie 集，用户应
-> 确认范围；非 xiaohongshu.com 域 Cookie 会被忽略。
-
-### 后端 C：xhs-cli（存量备选，上游 2026-03 起停更）
-
-```bash
-xhs search "query"          # 搜索
-xhs read NOTE_ID_OR_URL     # 读笔记（必须用搜索结果中的 URL/ID，不能裸 note_id）
-xhs comments NOTE_ID_OR_URL # 评论
-xhs hot                     # 热门
-xhs feed                    # 推荐
-```
-
-> 已知不稳定：`xhs user` / `xhs user-posts` / `xhs favorites` 可能返回 API error（上游停更无人修）。新装用户建议直接走后端 A/B。
+> `agent-reach configure` 不会把 Cookie 注入 OpenCLI。
+> 如果没有现成会话，不要自动登录。
 
 ### 通用注意事项
 
 > **认证边界**: Agent Reach 不得替用户执行小红书登录，也不得读取浏览器
-> Cookie。OpenCLI 只能使用用户已有且明确控制的 Chrome 会话；
-> xiaohongshu-mcp / 存量工具使用 Cookie-Editor 手工导出。
+> Cookie。OpenCLI 只能使用用户已有且明确控制的 Chrome 会话。
 >
-> **xsec_token 限制**: 小红书强制 xsec_token 机制，**不能直接用裸 note_id 去读**。正确流程：先搜索/feed 拿结果，再用结果中的完整 URL/ID 去读。三个后端都一样。
+> **xsec_token 限制**: 小红书强制 xsec_token 机制，**不能直接用裸 note_id 去读**。正确流程：先搜索/feed 拿结果，再用结果中的完整 URL/ID 去读。
 >
 > **频率控制**: 高频请求（批量搜索、深翻评论）会触发验证码，平台限制无法绕过。每次操作间隔 2-3 秒。
 >
-> **写操作（发帖/评论/点赞）**: 建议只读。xhs-cli v0.6.x 写操作可能因签名问题返回 406。
-
-## Twitter/X (twitter-cli)
-
-### 认证前置条件
-
-`agent-reach configure twitter-cookies` 通过隐藏输入保存的 Cookie 只供
-`agent-reach doctor` 检查显式凭据是否齐全。`doctor` 不执行上游
-`twitter status`，也不会设置当前 Shell。运行下面任何 `twitter` 命令前，
-必须在同一个 Shell 或子进程环境中显式提供：
-
-```bash
-export TWITTER_AUTH_TOKEN="..."
-export TWITTER_CT0="..."
-```
-
-### 稳定命令
-
-```bash
-# 首页时间线（最稳定）
-twitter feed -n 20
-
-# 读取单条推文（含回复）
-twitter tweet URL_OR_ID
-
-# 读取长文 / X Article
-twitter article URL_OR_ID
-
-# 用户时间线
-twitter user-posts @username -n 20
-
-# 用户资料
-twitter user @username
-```
-
-### 可能不稳定的命令
-
-```bash
-# 搜索推文（Twitter 频繁改 GraphQL 端点，可能 404）
-twitter search "query" -n 10
-
-# likes（2024 年后只能看自己的，平台限制）
-twitter likes
-```
-
-### search 失败时的重试链（按序执行，成功即停）
-
-1. 直接重试一次（偶发失败常见）：`twitter search "query" -n 10`
-2. 升级后再试：`pipx upgrade twitter-cli && twitter search "query" -n 10`
-3. 换 OpenCLI 备选（桌面，复用浏览器登录态）：`opencli twitter search "query" -f yaml`
-4. 都不行就改用 `twitter feed` / `twitter user-posts @somebody` 等稳定命令绕路
-
-### 重要注意事项
-
-> **安装**: `pipx install twitter-cli`（确保 v0.8.5+）
->
-> **认证**: 只用 Cookie-Editor 手工导出，再显式设置环境变量
-> `TWITTER_AUTH_TOKEN` + `TWITTER_CT0`；不要依赖自动浏览器读取。
->
-> **IP 风控**: 不要在 VPS/数据中心 IP 上频繁调用，尤其是 followers/following，有封号风险。使用住宅代理或本地环境。
->
-> **OpenCLI 备选**: 桌面装了 OpenCLI 的话，`opencli twitter search/article/user-posts -f yaml` 全套可用（浏览器登录态，无需 cookie 环境变量）。
->
-> **输出格式**: 建议用 `--yaml` 或 `--json` 获得结构化输出，对 AI agent 更友好。
+> **写操作（发帖/评论/点赞）**: 建议只读。
 
 ## B站 / Bilibili
 
@@ -216,11 +117,9 @@ user = ch.get_user("Livid")
 
 > **节点列表**: https://www.v2ex.com/planes
 
-## Reddit（多后端，必须登录态）
+## Reddit（OpenCLI，必须登录态）
 
-**Reddit 没有零配置路径**：匿名 `.json` 端点已被封（403），官方 API 自 2025-11 起人工审批基本不批。两个后端都靠登录态，先跑 `agent-reach doctor --json` 看 reddit 的 `active_backend`。中国大陆访问需代理。
-
-### 后端 A：OpenCLI（桌面首选，复用浏览器登录态）
+**Reddit 没有零配置路径**：匿名 `.json` 端点已被封（403），官方 API 自 2025-11 起人工审批基本不批。Reddit 只保留 OpenCLI 后端（rdt-cli 已作为高风险后端移除）。先跑 `agent-reach doctor --json` 看 reddit 的 `active_backend`。中国大陆访问需代理。
 
 ```bash
 # 搜索帖子
@@ -239,19 +138,6 @@ opencli reddit subreddit-info LocalLLaMA -f yaml
 ```
 
 > 要求 Chrome 打开且浏览器里登录过 reddit.com。
-
-### 后端 B：rdt-cli（存量/服务器备选，上游 2026-03 起停更）
-
-```bash
-rdt search "query" --limit 10   # 搜索帖子
-rdt read POST_ID                # 读帖子全文 + 评论
-rdt sub python --limit 20       # 浏览 subreddit
-rdt popular --limit 10          # 浏览热门
-rdt all --limit 10              # 浏览 /r/all
-```
-
-> **安装**: `pipx install 'git+https://github.com/public-clis/rdt-cli.git'`（PyPI 版本落后，需从 GitHub 装 v0.4.2+）。先 `rdt login` 才能搜索和阅读（服务器无浏览器时手动写 Cookie，见 doctor 提示）。
-> 建议使用 `--yaml` 输出，对 AI agent 更友好。
 
 ### 高级选项：官方 API + PRAW（仅限已有凭证的用户）
 

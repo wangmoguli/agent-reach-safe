@@ -145,87 +145,14 @@ class TestCLI:
         assert "requires --provider auto" in capsys.readouterr().err
         mock_transcribe.assert_not_called()
 
-    def test_parse_twitter_cookie_input_separate_values(self):
-        auth_token, ct0 = cli._parse_twitter_cookie_input("token123 ct0abc")
-        assert auth_token == "token123"
-        assert ct0 == "ct0abc"
-
-    def test_parse_twitter_cookie_input_cookie_header(self):
-        auth_token, ct0 = cli._parse_twitter_cookie_input(
-            "auth_token=token123; ct0=ct0abc; other=value"
-        )
-        assert auth_token == "token123"
-        assert ct0 == "ct0abc"
-
-    def test_twitter_config_does_not_run_unsafe_verification_or_mutate_env(
-        self, monkeypatch, capsys
-    ):
-        monkeypatch.setenv("TWITTER_AUTH_TOKEN", "shell-auth")
-        monkeypatch.setenv("TWITTER_CT0", "shell-ct0")
-        monkeypatch.setattr(shutil, "which", lambda name: "/bin/twitter")
-        monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "configure must not execute twitter status"
-            ),
-        )
-
-        cli._cmd_configure(
-            Namespace(
-                from_browser=None,
-                key="twitter-cookies",
-                value=["saved-auth", "saved-ct0"],
-                sync_legacy_twitter=False,
-            )
-        )
-
-        output = capsys.readouterr().out
-        assert "未实时验证" in output
-        assert "不会执行 `twitter status`" in output
-        assert cli.os.environ["TWITTER_AUTH_TOKEN"] == "shell-auth"
-        assert cli.os.environ["TWITTER_CT0"] == "shell-ct0"
-
-    def test_install_rdt_cli_prefers_github_source(self, monkeypatch, capsys):
-        state = {"rdt_installed": False}
-        commands = []
-
-        def fake_which(name):
-            if name == "rdt":
-                return "/usr/local/bin/rdt" if state["rdt_installed"] else None
-            if name == "pipx":
-                return "/usr/local/bin/pipx"
-            return None
-
-        def fake_run(cmd, **kwargs):
-            commands.append(cmd)
-            state["rdt_installed"] = True
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-
-        monkeypatch.setattr(shutil, "which", fake_which)
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
-        cli._install_rdt_cli()
-
-        out = capsys.readouterr().out
-        assert commands == [["/usr/local/bin/pipx", "install", cli._RDT_GIT_SOURCE]]
-        assert "✅ rdt-cli installed" in out
-
-    def test_install_reddit_deps_routes_by_environment(self, monkeypatch):
-        """桌面 → OpenCLI;服务器 → rdt-cli(钉 git 源)。"""
+    def test_install_reddit_deps_always_uses_opencli(self, monkeypatch):
+        """Reddit 只走 OpenCLI（rdt-cli 已作为高风险后端移除）。"""
         calls = []
         monkeypatch.setattr(cli, "_install_opencli_deps", lambda: calls.append("opencli"))
-        monkeypatch.setattr(cli, "_install_rdt_cli", lambda: calls.append("rdt"))
         monkeypatch.setattr(shutil, "which", lambda _: None)
 
-        monkeypatch.setattr(cli, "_detect_environment", lambda: "local")
         cli._install_reddit_deps()
         assert calls == ["opencli"]
-
-        calls.clear()
-        monkeypatch.setattr(cli, "_detect_environment", lambda: "server")
-        cli._install_reddit_deps()
-        assert calls == ["rdt"]
 
     def test_install_opencli_uses_resolved_windows_npm_path(self, monkeypatch):
         import agent_reach.backends as backends

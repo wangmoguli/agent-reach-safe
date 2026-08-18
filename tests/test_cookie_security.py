@@ -99,18 +99,6 @@ def test_cookie_backend_cannot_smuggle_a_lookalike_domain(monkeypatch):
     assert extracted == {"xueqiu": {"xq_a_token": "valid"}}
 
 
-@pytest.mark.parametrize(
-    ("platform", "manual_key"),
-    [
-        ("twitter", "twitter-cookies"),
-        ("xhs", "xhs-cookies"),
-    ],
-)
-def test_browser_extraction_rejects_cookie_editor_platforms(platform, manual_key):
-    with pytest.raises(ValueError, match=rf"Cookie-Editor.*{manual_key}"):
-        cookie_extract.extract_all("chrome", platform=platform)
-
-
 def test_explicit_profile_uses_only_that_cookie_database(tmp_path, monkeypatch):
     cookie_db = tmp_path / "Profile 1" / "Network" / "Cookies"
     cookie_db.parent.mkdir(parents=True)
@@ -174,14 +162,6 @@ def test_invalid_platform_error_does_not_echo_url_secrets():
     assert "user:pass" not in message
     assert "secret" not in message
     assert "***" in message
-
-
-@pytest.mark.parametrize("platform", ["twitter", "xhs"])
-def test_configure_from_browser_rejects_cookie_editor_platforms(platform):
-    with pytest.raises(ValueError, match="Cookie-Editor"):
-        cookie_extract.configure_from_browser(
-            "chrome", RecordingConfig(), platform=platform
-        )
 
 
 def test_xueqiu_config_persists_only_xq_a_token(monkeypatch):

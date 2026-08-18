@@ -110,12 +110,11 @@ AI Agent 已经能帮你写代码、改文档、管项目——但你让它去�
 | 📡 **RSS** | 阅读任意 RSS/Atom 源 | — | 无需配置 |
 | 🔍 **全网搜索** | — | 全网语义搜索 | 自动配置（MCP 接入，免费无需 Key） |
 | 📦 **GitHub** | 读公开仓库 + 搜索 | 私有仓库、提 Issue/PR、Fork | 告诉 Agent「帮我登录 GitHub」 |
-| 🐦 **Twitter/X** | 读单条推文 | 搜索推文、浏览时间线、读长文 | 告诉 Agent「帮我配 Twitter」 |
 | 📺 **B站** | 搜索 + 视频详情（bili-cli，无需登录） | 字幕（OpenCLI） | 告诉 Agent「帮我配 B站」 |
-| 📖 **Reddit** | —（没有零配置路径：匿名接口已被封） | 搜索 + 读帖子和评论 | 桌面装 OpenCLI 用浏览器登录态；或 rdt-cli + Cookie |
+| 📖 **Reddit** | —（没有零配置路径：匿名接口已被封） | 搜索 + 读帖子和评论 | 桌面装 OpenCLI 用浏览器登录态 |
 | 📘 **Facebook** | — | 搜索、主页、Feed、群组列表 | 桌面装 OpenCLI（复用 Chrome 登录态） |
 | 📷 **Instagram** | — | 用户搜索、Profile、用户最近帖子、Explore | 桌面装 OpenCLI（复用 Chrome 登录态） |
-| 📕 **小红书** | — | 搜索、阅读、评论 | OpenCLI 只用用户已有 Chrome 会话；MCP/存量工具用 Cookie-Editor |
+| 📕 **小红书** | — | 搜索、阅读、评论 | OpenCLI 复用用户已有 Chrome 会话 |
 | 💼 **LinkedIn** | Jina Reader 读公开页面 | Profile 详情、公司页面、职位搜索 | 告诉 Agent「帮我配 LinkedIn」 |
 | 💻 **V2EX** | 热门帖子、节点帖子、帖子详情+回复、用户信息 | — | 无需配置 |
 | 📈 **雪球** | 股票行情、搜索股票、热门帖子、热门股票排行 | — | 告诉 Agent「帮我配雪球」 |
@@ -123,9 +122,7 @@ AI Agent 已经能帮你写代码、改文档、管项目——但你让它去�
 
 > **不知道怎么配？不用查文档。** 直接告诉 Agent「帮我配 XXX」，它知道需要什么、会一步一步引导你。
 >
-> 🍪 Twitter 只接受用户通过 Cookie-Editor 手工导出的内容。Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie；OpenCLI 只使用用户已经存在且明确控制的 Chrome 会话。`agent-reach configure xhs-cookies` 不会把 Cookie 注入 OpenCLI / Chrome；没有现成会话时，改用 Cookie-Editor 导出后配置 xiaohongshu-mcp / 存量工具。
->
-> Twitter Cookie 保存后仅供 `agent-reach doctor` 检查配置是否齐全；直接运行上游 `twitter` 命令前，仍需在当前进程环境中显式设置 `TWITTER_AUTH_TOKEN` 和 `TWITTER_CT0`。
+> 🔒 Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie；OpenCLI 只使用用户已经存在且明确控制的 Chrome 会话，不会把 Cookie 注入 OpenCLI / Chrome。
 >
 > 🔒 Cookie 只存在你本地，不上传不外传。代码完全开源，随时可审查。
 > 💻 本地电脑不需要代理。代理只有部署在服务器上才需要（~$1/月）。
@@ -208,14 +205,13 @@ AI Agent 已经能帮你写代码、改文档、管项目——但你让它去�
 ```
 channels/
 ├── web.py          → Jina Reader
-├── twitter.py      → twitter-cli ▸ OpenCLI ▸ bird
 ├── youtube.py      → yt-dlp
 ├── github.py       → gh CLI
 ├── bilibili.py     → bili-cli ▸ OpenCLI ▸ 搜索 API（yt-dlp 已被 B站风控封死，退役）
-├── reddit.py       → OpenCLI ▸ rdt-cli（无零配置路径，必须登录态）
+├── reddit.py       → OpenCLI（无零配置路径，必须登录态）
 ├── facebook.py     → OpenCLI（桌面浏览器登录态）
 ├── instagram.py    → OpenCLI（桌面浏览器登录态）
-├── xiaohongshu.py  → OpenCLI ▸ xiaohongshu-mcp ▸ xhs-cli
+├── xiaohongshu.py  → OpenCLI
 ├── linkedin.py     → mcp-server-linkedin ▸ Jina Reader
 ├── rss.py          → feedparser
 ├── exa_search.py   → Exa via mcporter
@@ -229,8 +225,7 @@ channels/
 | 场景 | 首选 | 备选 | 为什么这么选 |
 |------|------|------|-----------|
 | 读网页 | [Jina Reader](https://github.com/jina-ai/reader) | — | 免费，不需要 API Key |
-| 读推特 | [twitter-cli](https://github.com/public-clis/twitter-cli) | [OpenCLI](https://github.com/jackwener/opencli) | 实测搜索稳定；OpenCLI 走浏览器登录态兜底 |
-| Reddit | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | [rdt-cli](https://github.com/public-clis/rdt-cli) | 匿名接口已被封、官方 API 审批制——只剩登录态路线 |
+| Reddit | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | — | 匿名接口已被封、官方 API 审批制——只剩登录态路线 |
 | Facebook | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | — | Graph API/Groups API 权限收紧；浏览器登录态是当前最实用路径 |
 | Instagram | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | 官方 Graph API（Business/Creator + 审批） | instaloader 类路径不稳定；OpenCLI 复用真实浏览器会话 |
 | YouTube 字幕 + 搜索 | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | — | 154K Star，YouTube 仍是最佳（注意：不再用于 B站） |
@@ -238,7 +233,7 @@ channels/
 | 搜全网 | [Exa](https://exa.ai) via [mcporter](https://github.com/nicobailon/mcporter) | — | AI 语义搜索，MCP 接入免 Key |
 | GitHub | [gh CLI](https://cli.github.com) | — | 官方工具，认证后完整 API 能力 |
 | 读 RSS | [feedparser](https://github.com/kurtmckee/feedparser) | — | Python 生态标准选择 |
-| 小红书 | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | [xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp)（服务器）▸ xhs-cli | OpenCLI 只用用户已有会话；其余后端用 Cookie-Editor 手工导出 |
+| 小红书 | [OpenCLI](https://github.com/jackwener/opencli)（桌面） | — | OpenCLI 只用用户已有会话（高风险后端已移除） |
 | LinkedIn | [mcp-server-linkedin](https://github.com/stickerdaniel/linkedin-mcp-server) | Jina Reader | MCP 服务，浏览器自动化 |
 
 > 📌 这些都是「当前选型」，基于真机实测定期复核。某条路失效了我们换下一条——`agent-reach doctor` 永远告诉你现在走的是哪条。
@@ -259,9 +254,9 @@ Agent Reach 在设计上重视安全：
 
 ### 🍪 Cookie 安全建议
 
-> ⚠️ **封号风险提醒：** 使用 Cookie 登录的平台（Twitter、小红书等），通过脚本/API 调用**存在被平台检测并封号的风险**。请务必使用**专用小号**，不要用你的主账号。
+> ⚠️ **封号风险提醒：** 使用 Cookie 登录的平台，通过脚本/API 调用**存在被平台检测并封号的风险**。请务必使用**专用小号**，不要用你的主账号。
 
-需要 Cookie 或登录态的平台（Twitter、小红书、Reddit、Facebook、Instagram 等）建议使用**专用小号**，不要用主账号。原因有二：
+需要 Cookie 或登录态的平台（小红书、Reddit、Facebook、Instagram 等）建议使用**专用小号**，不要用主账号。原因有二：
 1. **封号风险** — 平台可能检测到非正常浏览器的 API 调用行为，导致账号被限制或封禁
 2. **安全风险** — Cookie 等同于完整登录权限，用小号可以在凭据泄露时限制影响范围
 

@@ -5,7 +5,7 @@ Agent Reach CLI — installer, doctor, and configuration tool.
 Usage:
     agent-reach install --env=auto
     agent-reach doctor
-    agent-reach configure twitter-cookies
+    agent-reach configure
     agent-reach setup
 """
 
@@ -17,16 +17,12 @@ import time
 
 from agent_reach import __version__
 
-# Pinned to the 0.4.2 state — PyPI still only has 0.4.1 (upstream issue #10).
-_RDT_GIT_SOURCE = "git+https://github.com/public-clis/rdt-cli.git@5e4fb3720d5c174e976cd425ccc3b879d52cac66"
 _MAX_CONFIGURE_VALUE_CHARS = 1024 * 1024
 _SENSITIVE_CONFIG_KEYS = {
     "proxy",
     "github-token",
     "groq-key",
     "openai-key",
-    "twitter-cookies",
-    "xhs-cookies",
 }
 
 
@@ -92,15 +88,14 @@ def main():
                            help="Show what would be done without making any changes")
     p_install.add_argument("--channels", default="",
                            help="Comma-separated optional channels to install "
-                                "(twitter,xiaoyuzhou,xueqiu,xiaohongshu,"
+                                "(xiaoyuzhou,xueqiu,"
                                 "reddit,facebook,instagram,bilibili,linkedin,all)")
 
     # ── configure ──
     p_conf = sub.add_parser("configure", help="Set a config value or auto-extract from browser")
     p_conf.add_argument("key", nargs="?", default=None,
                         choices=["proxy", "github-token", "groq-key", "openai-key",
-                                 "twitter-cookies", "youtube-cookies",
-                                 "xhs-cookies"],
+                                 "youtube-cookies"],
                         help="What to configure (omit if using --from-browser)")
     p_conf.add_argument("value", nargs="*", help="The value(s) to set")
     p_conf.add_argument(
@@ -114,17 +109,12 @@ def main():
                         help="Extract cookies for one explicitly selected platform")
     p_conf.add_argument(
         "--platform",
-        choices=["twitter", "xiaohongshu", "bilibili", "xueqiu"],
+        choices=["bilibili", "xueqiu"],
         help="Platform to import (required with --from-browser)",
     )
     p_conf.add_argument(
         "--profile",
         help="Exact browser profile; a missing profile fails instead of falling back",
-    )
-    p_conf.add_argument(
-        "--sync-legacy-twitter",
-        action="store_true",
-        help="With twitter-cookies, also write legacy xfetch/bird credential files",
     )
 
     # ── doctor ──
@@ -183,21 +173,10 @@ def main():
             p_conf.error("--stdin cannot be combined with --from-browser")
         if not args.platform:
             p_conf.error("--platform is required with --from-browser")
-        manual_keys = {
-            "twitter": "twitter-cookies",
-            "xiaohongshu": "xhs-cookies",
-        }
-        if args.platform in manual_keys:
-            p_conf.error(
-                f"{args.platform} requires Cookie-Editor export; use "
-                f"`agent-reach configure {manual_keys[args.platform]} ...`"
-            )
         if args.profile and args.from_browser not in {"chrome", "edge", "brave"}:
             p_conf.error(
                 "--profile is supported only for Chrome/Edge/Brave"
             )
-        if args.sync_legacy_twitter:
-            p_conf.error("--sync-legacy-twitter is only valid with twitter-cookies")
     elif args.command == "configure":
         if args.read_stdin and args.value:
             p_conf.error("--stdin cannot be combined with a positional value")
@@ -205,8 +184,6 @@ def main():
             p_conf.error("--stdin requires a configure key")
         if args.profile or args.platform:
             p_conf.error("--platform/--profile require --from-browser")
-        if args.sync_legacy_twitter and args.key != "twitter-cookies":
-            p_conf.error("--sync-legacy-twitter is only valid with twitter-cookies")
 
     if (
         args.command == "transcribe"
@@ -263,7 +240,6 @@ def _cmd_install(args):
 
     # Validate channel names before constructing config or changing the system.
     CHANNEL_INSTALLERS = {
-        "twitter":     _install_twitter_deps,
         "xiaoyuzhou":  _install_xiaoyuzhou_deps,
         "xiaohongshu": _install_xhs_deps,
         "reddit":      _install_reddit_deps,
@@ -314,7 +290,7 @@ def _cmd_install(args):
         os.makedirs(tools_dir, exist_ok=True)
 
     OPENCLI_ONLY_CHANNELS = {"opencli", "facebook", "instagram"}
-    COOKIE_CHANNELS = {"twitter", "xueqiu", "bilibili", "xiaohongshu"}
+    COOKIE_CHANNELS = {"xueqiu", "bilibili"}
 
     # Auto-detect environment
     env = args.env
@@ -393,15 +369,10 @@ def _cmd_install(args):
         print("Cookie login is never read automatically.")
         print("Run only the platform command you intend to authorize:")
         for channel in sorted(requested_channels & COOKIE_CHANNELS):
-            if channel == "twitter":
-                print("  agent-reach configure twitter-cookies")
-            elif channel == "xiaohongshu":
-                print("  agent-reach configure xhs-cookies")
-            else:
-                print(
-                    "  agent-reach configure --from-browser chrome "
-                    f"--platform {channel}"
-                )
+            print(
+                "  agent-reach configure --from-browser chrome "
+                f"--platform {channel}"
+            )
     elif env == "local" and needs_cookies and dry_run:
         print()
         print("[dry-run] Cookie import remains explicit; install will not read a browser")
@@ -410,7 +381,7 @@ def _cmd_install(args):
     if env == "server":
         print()
         print("Tip: 部分平台对服务器 IP 有风控。")
-        print("   Reddit 必须登录态（rdt-cli + Cookie，见 doctor 提示），中国大陆网络还需代理。")
+        print("   Reddit 必须登录态（桌面 OpenCLI 复用浏览器会话），中国大陆网络还需代理。")
         print("   保存代理供 Agent 使用：agent-reach configure proxy（隐藏输入）")
         print("   Cheap option: https://www.webshare.io ($1/month)")
 
@@ -451,7 +422,7 @@ def _cmd_install(args):
                 # First install — hint about optional channels
                 print()
                 print("More channels available! Use --channels to install:")
-                print("   agent-reach install --system --channels=twitter,xiaohongshu,reddit,facebook,instagram,...")
+                print("   agent-reach install --system --channels=reddit,facebook,instagram,...")
                 print("   agent-reach install --system --channels=all  (install everything)")
 
             # Star reminder
@@ -895,9 +866,8 @@ def _install_system_deps():
                     "(YouTube may not work)"
                 )
 
-    # NOTE: twitter-cli, xiaoyuzhou, xhs-cli etc. are optional.
-    # They are installed via --channels flag, not here.
-    # See CHANNEL_INSTALLERS in _cmd_install().
+    # NOTE: xiaoyuzhou and other optional channels are installed via
+    # --channels, not here. See CHANNEL_INSTALLERS in _cmd_install().
     return system_install_ok
 
 
@@ -952,63 +922,13 @@ def _install_xiaoyuzhou_deps():
     return script_ok and ffmpeg_ok
 
 
-def _install_twitter_deps():
-    """Install twitter-cli for Twitter search + timeline."""
-    import shutil
-    import subprocess
-
-    print("Setting up Twitter (twitter-cli)...")
-    if shutil.which("twitter"):
-        print("  ✅ twitter-cli already installed")
-        return True
-    for tool, args in [
-        ("pipx", ["install", "twitter-cli"]),
-        ("uv", ["tool", "install", "twitter-cli"]),
-    ]:
-        tool_cmd = shutil.which(tool)
-        if tool_cmd:
-            try:
-                result = subprocess.run(
-                    [tool_cmd, *args], capture_output=True, encoding="utf-8",
-                    errors="replace", timeout=120,
-                )
-                if result.returncode == 0 and shutil.which("twitter"):
-                    print("  ✅ twitter-cli installed")
-                    return True
-            except (OSError, subprocess.TimeoutExpired):
-                pass
-    print("  [!]  twitter-cli install failed. Run: pipx install twitter-cli")
-    return False
-
-
 def _install_xhs_deps():
-    """Set up XiaoHongShu — backend depends on environment.
+    """Set up XiaoHongShu via OpenCLI (reuses the browser session, zero config).
 
-    Desktop: OpenCLI (reuses the browser session, zero config).
-    Server: xiaohongshu-mcp guide with an explicit Cookie-Editor export;
-    we don't manage long-running services, so guide only.
-    xhs-cli is no longer installed by default — upstream unmaintained
-    since 2026-03; existing installs keep working as a fallback backend.
+    xhs-cli and xiaohongshu-mcp were removed as high ban-risk backends.
     """
-    import shutil
-
     print("Setting up XiaoHongShu...")
-    if _detect_environment() == "server":
-        print("  服务器环境推荐 xiaohongshu-mcp：")
-        print("    1. 下载 binary：https://github.com/xpzouying/xiaohongshu-mcp/releases")
-        print("       （建议放到 ~/.agent-reach/tools/ 下）")
-        print("    2. 启动服务（首次运行会下载约 150MB 浏览器，请等待完成）")
-        print("    3. 用 Cookie-Editor 从 xiaohongshu.com 明确导出 Cookie")
-        print("       agent-reach configure xhs-cookies（粘贴到隐藏输入提示）")
-        print("    4. 接入：mcporter config add xiaohongshu http://localhost:18060/mcp --scope home")
-        print("    5. 验证：agent-reach doctor")
-        return False
-
-    opencli_ok = _install_opencli_deps()
-    xhs_ok = bool(shutil.which("xhs"))
-    if xhs_ok:
-        print("  ✅ 检测到存量 xhs-cli，将作为备选后端继续可用")
-    return opencli_ok or xhs_ok
+    return _install_opencli_deps()
 
 
 def _install_opencli_deps():
@@ -1069,49 +989,14 @@ def _install_opencli_deps():
 
 
 def _install_reddit_deps():
-    """Set up Reddit — desktop prefers OpenCLI, rdt-cli for servers/legacy.
+    """Set up Reddit via OpenCLI (reuses the browser session).
 
     No zero-config path exists (anonymous .json blocked, official API
     approval-gated since 2025-11) — every backend needs a logged-in session.
+    rdt-cli was removed as a high ban-risk backend.
     """
-    if _detect_environment() != "server":
-        installed = _install_opencli_deps()
-        print("  Reddit 走 OpenCLI（浏览器里登录过 reddit.com 即可用）")
-        import shutil
-        if shutil.which("rdt"):
-            print("  ✅ 检测到存量 rdt-cli，将作为备选后端继续可用")
-        return installed
-
-    return _install_rdt_cli()
-
-
-def _install_rdt_cli():
-    """Install rdt-cli (pinned git source — PyPI lags upstream)."""
-    import shutil
-    import subprocess
-
-    print("Setting up Reddit (rdt-cli)...")
-    if shutil.which("rdt"):
-        print("  ✅ rdt-cli already installed")
-        return True
-    for tool, args in [
-        ("pipx", ["install", _RDT_GIT_SOURCE]),
-        ("uv", ["tool", "install", "--from", _RDT_GIT_SOURCE, "rdt-cli"]),
-    ]:
-        tool_cmd = shutil.which(tool)
-        if tool_cmd:
-            try:
-                result = subprocess.run(
-                    [tool_cmd, *args], capture_output=True, encoding="utf-8",
-                    errors="replace", timeout=120,
-                )
-                if result.returncode == 0 and shutil.which("rdt"):
-                    print("  ✅ rdt-cli installed")
-                    return True
-            except (OSError, subprocess.TimeoutExpired):
-                pass
-    print(f"  [!]  rdt-cli install failed. Run: pipx install '{_RDT_GIT_SOURCE}'")
-    return False
+    print("  Reddit 走 OpenCLI（浏览器里登录过 reddit.com 即可用）")
+    return _install_opencli_deps()
 
 
 def _install_bili_deps():
@@ -1273,7 +1158,6 @@ def _install_mcporter():
         print("  [!]  Could not configure Exa. Run manually: mcporter config add exa https://mcp.exa.ai/mcp --scope home")
         return False
 
-    # NOTE: xhs-cli is now optional, installed via --channels=xiaohongshu
 
 
 def _install_mcporter_safe():
@@ -1375,7 +1259,6 @@ def _read_configure_value(args) -> str:
 
 def _cmd_configure(args):
     """Set a config value and test it, or auto-extract from browser."""
-    import shutil
     from typing import cast
 
     from agent_reach.config import Config
@@ -1387,7 +1270,7 @@ def _cmd_configure(args):
         from agent_reach.cookie_extract import configure_from_browser
 
         browser = args.from_browser
-        platform = "xhs" if args.platform == "xiaohongshu" else args.platform
+        platform = args.platform
         print(f"Extracting {args.platform} cookies from {browser}...")
         print()
 
@@ -1457,71 +1340,13 @@ def _cmd_configure(args):
         # bilibili_proxy key is kept in sync for older configs.
         config.set("proxy", value)
         config.set("bilibili_proxy", value)
-        print("✅ 代理已保存（供 Agent 在访问 Reddit/Twitter 等需要代理的网络时设置 HTTP_PROXY/HTTPS_PROXY）")
+        print("✅ 代理已保存（供 Agent 在访问 Reddit 等需要代理的网络时设置 HTTP_PROXY/HTTPS_PROXY）")
         print("  Note: B站走 bili-cli，国内网络无需代理。")
-
-    elif args.key == "twitter-cookies":
-        # Accept two formats:
-        # 1. auth_token ct0 (two separate values)
-        # 2. Full cookie header string: "auth_token=xxx; ct0=yyy; ..."
-        auth_token, ct0 = _parse_twitter_cookie_input(value)
-
-        if auth_token and ct0:
-            config.set("twitter_auth_token", auth_token)
-            config.set("twitter_ct0", ct0)
-
-            print("✅ Twitter cookies 已保存到 ~/.agent-reach/config.yaml")
-            if getattr(args, "sync_legacy_twitter", False):
-                from agent_reach.cookie_extract import (
-                    _sync_bird_env,
-                    _sync_xfetch_session,
-                )
-
-                legacy_results = (
-                    (
-                        "~/.config/xfetch/session.json",
-                        _sync_xfetch_session(auth_token, ct0),
-                    ),
-                    (
-                        "~/.config/bird/credentials.env",
-                        _sync_bird_env(auth_token, ct0),
-                    ),
-                )
-                for path, success in legacy_results:
-                    outcome = "written" if success else "failed"
-                    print(f"  {outcome}: {path}")
-                if all(success for _, success in legacy_results):
-                    print("  Legacy copies written successfully.")
-
-            print(
-                "  凭据未实时验证：不会执行 `twitter status`，因为上游在"
-                "验证失败时会自动读取浏览器 Cookie。"
-            )
-            if not shutil.which("twitter"):
-                print(
-                    "  [!] twitter-cli 未安装。运行：pipx install twitter-cli"
-                )
-            else:
-                print(
-                    "  注意：独立 `twitter` 命令不会读取 Agent Reach 配置；"
-                    "直接使用时需显式设置 TWITTER_AUTH_TOKEN/TWITTER_CT0。"
-                )
-        else:
-            print("[X] Could not find auth_token and ct0 in your input.")
-            print("   Run `agent-reach configure twitter-cookies` and paste either:")
-            print("   1. AUTH_TOKEN and CT0 separated by whitespace")
-            print("   2. A Cookie-Editor Header String")
-            print("   For automation, pass the same value through --stdin.")
-            raise SystemExit(1)
 
     elif args.key == "youtube-cookies":
         config.set("youtube_cookies_from", value)
         print(f"✅ YouTube cookie source configured: {value}")
         print("   yt-dlp will use cookies from this browser for age-restricted/member videos.")
-
-    elif args.key == "xhs-cookies":
-        if not _configure_xhs_cookies(value):
-            raise SystemExit(1)
 
     elif args.key == "github-token":
         config.set("github_token", value)
@@ -1564,264 +1389,6 @@ def _cmd_transcribe(args):
         print(text)
 
 
-def _parse_twitter_cookie_input(value: str):
-    """Parse Twitter cookie input from either separate values or a cookie header."""
-    auth_token = None
-    ct0 = None
-
-    if "auth_token=" in value and "ct0=" in value:
-        # Full cookie string — parse it.
-        for part in value.replace(";", " ").split():
-            if part.startswith("auth_token="):
-                auth_token = part.split("=", 1)[1]
-            elif part.startswith("ct0="):
-                ct0 = part.split("=", 1)[1]
-    elif len(value.split()) == 2 and "=" not in value:
-        # Two separate values: AUTH_TOKEN CT0.
-        parts = value.split()
-        auth_token = parts[0]
-        ct0 = parts[1]
-
-    return auth_token, ct0
-
-
-def _configure_xhs_cookies(value) -> bool:
-    """Import cookies into xiaohongshu-mcp Docker container.
-
-    Accepts two formats:
-    1. Cookie-Editor JSON export (array of cookie objects)
-    2. Header String: "name1=value1; name2=value2; ..."
-
-    The xiaohongshu-mcp container stores cookies at $COOKIES_PATH
-    (default: /app/data/cookies.json or cookies.json in workdir).
-    Format: JSON array of {name, value, domain, path, expires, httpOnly, secure, sameSite}.
-    """
-    import json
-    import os
-    import shutil
-    import subprocess
-
-    value = value.strip()
-    if not value:
-        print("[X] Missing cookie value.")
-        print("   Run `agent-reach configure xhs-cookies` and paste the Cookie-Editor export.")
-        print("   For automation, pass the same value through --stdin.")
-        return False
-
-    # Detect format and parse
-    cookies_json = None
-
-    # Try JSON format first (Cookie-Editor JSON export)
-    if value.startswith("["):
-        try:
-            parsed = json.loads(value)
-            if isinstance(parsed, list) and parsed:
-                from agent_reach.utils.url import domain_matches
-
-                valid_cookies = []
-                ignored_domains = 0
-                ignored_invalid = 0
-                for cookie in parsed:
-                    if (
-                        not isinstance(cookie, dict)
-                        or not isinstance(cookie.get("name"), str)
-                        or not cookie["name"]
-                        or not isinstance(cookie.get("value"), str)
-                    ):
-                        ignored_invalid += 1
-                        continue
-                    if not domain_matches(
-                        cookie.get("domain", ""),
-                        "xiaohongshu.com",
-                    ):
-                        ignored_domains += 1
-                        continue
-                    valid_cookies.append(cookie)
-
-                if ignored_domains:
-                    print(
-                        f"  [!] 已忽略 {ignored_domains} 个非 "
-                        "xiaohongshu.com 域 Cookie"
-                    )
-                if ignored_invalid:
-                    print(
-                        f"  [!] 已忽略 {ignored_invalid} 个格式无效的 Cookie"
-                    )
-                if not valid_cookies:
-                    print(
-                        "[X] Cookie-Editor JSON 中没有有效的 "
-                        "xiaohongshu.com 域 Cookie"
-                    )
-                    return False
-                cookies_json = json.dumps(valid_cookies)
-                print(
-                    f"  Parsed {len(valid_cookies)} "
-                    "xiaohongshu.com cookies from JSON format"
-                )
-            else:
-                print("[X] Empty or invalid JSON array")
-                return False
-        except json.JSONDecodeError as e:
-            print(f"[X] Invalid JSON: {e}")
-            return False
-
-    # Header String format: "key1=val1; key2=val2; ..."
-    if cookies_json is None and "=" in value:
-        cookies = []
-        for part in value.split(";"):
-            part = part.strip()
-            if "=" not in part:
-                continue
-            name, val = part.split("=", 1)
-            name = name.strip()
-            val = val.strip()
-            if name:
-                cookies.append({
-                    "name": name,
-                    "value": val,
-                    "domain": ".xiaohongshu.com",
-                    "path": "/",
-                    "expires": -1,
-                    "size": len(name) + len(val),
-                    "httpOnly": False,
-                    "secure": False,
-                    "session": True,
-                    "sameSite": "Lax",
-                })
-        if cookies:
-            cookies_json = json.dumps(cookies)
-            print(f"  Parsed {len(cookies)} cookies from Header String format")
-        else:
-            print("[X] Could not parse any cookies from input")
-            return False
-
-    if not cookies_json:
-        print("[X] Could not parse cookies. Accepted formats:")
-        print('   1. JSON array: \'[{"name":"x","value":"y","domain":".xiaohongshu.com",...}]\'')
-        print('   2. Header String: "key1=val1; key2=val2; ..."')
-        return False
-
-    # Find the container
-    docker = shutil.which("docker")
-    if not docker:
-        # No Docker - write to a local file for manual import.
-        from agent_reach.utils.paths import (
-            PrivatePathError,
-            atomic_write_private_text,
-            home_dir,
-        )
-
-        cookie_path = home_dir() / ".agent-reach" / "xhs-cookies.json"
-        try:
-            atomic_write_private_text(cookie_path, cookies_json)
-        except (OSError, PrivatePathError) as exc:
-            print(f"[X] Could not save cookies safely: {exc}")
-            return False
-        print(f"  Cookies saved to {cookie_path}")
-        print("  Docker not found. Copy manually:")
-        print(f"  docker cp {cookie_path} xiaohongshu-mcp:/app/data/cookies.json")
-        return True
-
-    # Check if xiaohongshu-mcp container is running
-    try:
-        result = subprocess.run(
-            [docker, "ps", "--filter", "name=xiaohongshu-mcp", "--format", "{{.Names}}"],
-            capture_output=True, encoding="utf-8", timeout=5,
-        )
-        container_name = result.stdout.strip()
-        if not container_name:
-            print("[X] xiaohongshu-mcp container is not running.")
-            print("   Start it first:")
-            print("   docker run -d --name xiaohongshu-mcp -p 18060:18060 xpzouying/xiaohongshu-mcp")
-            return False
-    except Exception as e:
-        print(f"[X] Could not check Docker: {e}")
-        return False
-
-    # Find the cookies path inside the container
-    try:
-        result = subprocess.run(
-            [docker, "exec", container_name, "printenv", "COOKIES_PATH"],
-            capture_output=True, encoding="utf-8", timeout=5,
-        )
-        cookie_path_in_container = result.stdout.strip()
-        if not cookie_path_in_container:
-            cookie_path_in_container = "/app/cookies.json"  # fallback: absolute path in workdir
-    except Exception:
-        cookie_path_in_container = "/app/cookies.json"
-
-    # Write cookies into the container
-    tmp_path = None
-    try:
-        # Write to temp file then docker cp
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write(cookies_json)
-            tmp_path = f.name
-
-        result = subprocess.run(
-            [docker, "cp", tmp_path, f"{container_name}:{cookie_path_in_container}"],
-            capture_output=True, encoding="utf-8", timeout=10,
-        )
-
-        if result.returncode != 0:
-            print(f"[X] Failed to copy cookies: {result.stderr}")
-            return False
-
-        print(f"✅ Cookies written to {container_name}:{cookie_path_in_container}")
-        # Restart container so it reloads cookies from disk
-        print("  Restarting container to reload cookies...", end=" ", flush=True)
-        try:
-            restart = subprocess.run(
-                [docker, "restart", container_name],
-                capture_output=True, encoding="utf-8", timeout=30,
-            )
-            if restart.returncode != 0:
-                detail = (
-                    (restart.stderr or "").strip()[:200]
-                    or f"exit {restart.returncode}"
-                )
-                print(f"\n  [!] Could not restart container: {detail}")
-                print(f"  Restart manually: docker restart {container_name}")
-                return False
-            print("done")
-        except Exception as e:
-            print(f"\n  [!] Could not restart container: {e}")
-            print(f"  Restart manually: docker restart {container_name}")
-            return False
-    except Exception as e:
-        print(f"[X] Failed to write cookies: {e}")
-        return False
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except FileNotFoundError:
-                pass
-            except OSError as e:
-                print(f"  [!] Could not remove temporary cookie file: {e}")
-
-    # Verify login status via mcporter
-    mcporter = shutil.which("mcporter")
-    if mcporter:
-        print("  Verifying login status...", end=" ")
-        try:
-            result = subprocess.run(
-                [mcporter, "call", "xiaohongshu.check_login_status()"],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=15,
-            )
-            if "已登录" in result.stdout or "logged" in result.stdout.lower():
-                print("✅ Login verified!")
-            else:
-                print("[!] Login check returned unexpected result:")
-                print(f"  {result.stdout.strip()[:200]}")
-                print("  Cookies were written but login might not be valid. Try fresh cookies.")
-        except Exception as e:
-            print(f"[!] Could not verify: {e}")
-    else:
-        print("  (mcporter not found, skipping verification)")
-    return True
-
 
 def _cmd_uninstall(args):
     """Remove all Agent Reach config, tokens, and skill files."""
@@ -1862,22 +1429,6 @@ def _cmd_uninstall(args):
             print(f"  Config directory not found (already clean): {config_dir}")
     else:
         print(f"  Skipping config directory (--keep-config): {config_dir}")
-
-    # Opt-in legacy copies may be shared with upstream tools. Without a
-    # provenance marker it would be unsafe to delete them automatically, so
-    # surface every exact path that may still contain Twitter credentials.
-    legacy_credential_paths = (
-        home_dir() / ".config" / "xfetch" / "session.json",
-        home_dir() / ".config" / "bird" / "credentials.env",
-    )
-    present_legacy_paths = [
-        path for path in legacy_credential_paths if os.path.lexists(path)
-    ]
-    if present_legacy_paths:
-        print("  [!] 检测到可选的 Twitter legacy 凭据副本；不会自动删除：")
-        for path in present_legacy_paths:
-            print(f"      {path}")
-        print("      若确认不再被 xfetch/bird 使用，请手动删除。")
 
     # ── 2. Skill files ──
     skill_dirs = [
@@ -1934,10 +1485,10 @@ def _cmd_uninstall(args):
             mcporter_cleanup_skipped = True
             print(
                 "  [!] 无法安全核验 mcporter 配置来源；"
-                "不会自动删除 exa/xiaohongshu 项。"
+                "不会自动删除 exa 项。"
             )
         else:
-            for mcp_name in ("exa", "xiaohongshu"):
+            for mcp_name in ("exa",):
                 if mcp_name not in server_names:
                     continue
                 mcporter_cleanup_skipped = True
@@ -1965,7 +1516,6 @@ def _cmd_uninstall(args):
     print()
     print("Optional: remove tools installed by Agent Reach:")
     print("  npm uninstall -g mcporter")
-    print("  pipx uninstall twitter-cli")
     print("  npm uninstall -g undici")
 
 
@@ -2071,10 +1621,10 @@ def _cmd_setup():
             print("  跳过。公开 API 也能用")
     print()
 
-    # Step 3: Reddit — rdt-cli
-    print("【信息】Reddit — 必须登录态（无零配置路径）。桌面推荐 OpenCLI；或 rdt-cli：")
-    print(f"  安装：pipx install '{_RDT_GIT_SOURCE}'")
-    print("  然后运行：rdt login（需先在浏览器登录 reddit.com）")
+    # Step 3: Reddit — OpenCLI
+    print("【信息】Reddit — 必须登录态（无零配置路径）。推荐 OpenCLI：")
+    print("  桌面：agent-reach install --system --channels opencli")
+    print("  （复用 Chrome 登录态，登录过 reddit.com 即可用）")
     print()
 
     # Step 4: Groq (Whisper)

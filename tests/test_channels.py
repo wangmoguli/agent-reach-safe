@@ -32,7 +32,6 @@ class TestChannelRegistry:
         names = [ch.name for ch in channels]
         assert "web" in names
         assert "github" in names
-        assert "twitter" in names
         assert "facebook" in names
         assert "instagram" in names
         assert "v2ex" in names
@@ -794,75 +793,26 @@ class TestXueqiuChannel:
 
 
 class TestRedditChannel:
-    """多后端：OpenCLI > rdt-cli，没有零配置路径。"""
+    """Reddit 只保留 OpenCLI 后端（rdt-cli 已作为高风险后端移除）。"""
 
-    @staticmethod
-    def _isolate(monkeypatch, opencli=None):
-        """隔离 OpenCLI 候选（None = 未安装），聚焦 rdt-cli 路径。"""
+    def test_reports_off_when_opencli_missing(self, monkeypatch):
         from agent_reach.channels.reddit import RedditChannel
-        monkeypatch.setattr(RedditChannel, "_check_opencli", lambda self: opencli)
-
-    def test_reports_off_when_nothing_installed(self, monkeypatch):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: None)
-        from agent_reach.channels.reddit import RedditChannel
+        monkeypatch.setattr(RedditChannel, "_check_opencli", lambda self: None)
         status, msg = RedditChannel().check()
         assert status == "off"
-        # 诚实口径：明说没有零配置路径，推荐 OpenCLI + rdt git 源
         assert "零配置" in msg
         assert "opencli" in msg
-        assert "git+https://github.com/public-clis/rdt-cli.git" in msg
 
-    def test_opencli_ready_wins(self, monkeypatch):
-        self._isolate(monkeypatch, opencli=("ok", "OpenCLI 可用（复用浏览器登录态）"))
-        monkeypatch.setattr(shutil, "which", lambda _: None)
+    def test_opencli_ready_is_unverified_warn(self, monkeypatch):
         from agent_reach.channels.reddit import RedditChannel
-        ch = RedditChannel()
-        status, msg = ch.check()
-        assert status == "ok"
-        assert ch.active_backend == "OpenCLI"
-
-    def test_saved_rdt_cookie_is_unverified_not_active(
-        self, monkeypatch, isolated_home
-    ):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/rdt")
-        credential_path = (
-            isolated_home / ".config" / "rdt-cli" / "credential.json"
-        )
-        credential_path.parent.mkdir(parents=True)
-        credential_path.write_text(
-            json.dumps(
-                {
-                    "cookies": {"reddit_session": "explicit"},
-                    "saved_at": __import__("time").time(),
-                }
-            ),
-            encoding="utf-8",
-        )
         monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "Doctor must not execute rdt status"
-            ),
+            RedditChannel,
+            "_check_opencli",
+            lambda self: ("warn", "OpenCLI 桥接已连接，但 Reddit 登录态未实时验证"),
         )
-        from agent_reach.channels.reddit import RedditChannel
         ch = RedditChannel()
         status, msg = ch.check()
         assert status == "warn"
-        assert "未实时验证" in msg
-        assert ch.active_backend is None
-
-    def test_reports_warn_when_cookie_is_missing(self, monkeypatch):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/rdt")
-        from agent_reach.channels.reddit import RedditChannel
-        ch = RedditChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert "Cookie-Editor" in msg
-        assert "chromewebstore.google.com" in msg
         assert ch.active_backend is None
 
     def test_can_handle_reddit_urls(self):
@@ -875,22 +825,7 @@ class TestRedditChannel:
 
 
 class TestXiaoHongShuChannel:
-    """多后端选择逻辑：OpenCLI > xiaohongshu-mcp > xhs-cli，第一个完整可用者获胜。"""
-
-    @staticmethod
-    def _isolate(monkeypatch, opencli=None, mcp_reachable=False):
-        """隔离 OpenCLI / mcp 候选，让测试聚焦目标后端。
-
-        opencli: None 表示未安装；否则传入 (status, message) 二元组。
-        """
-        import agent_reach.channels.xiaohongshu as xhs_mod
-
-        monkeypatch.setattr(
-            XiaoHongShuChannel, "_check_opencli", lambda self: opencli
-        )
-        monkeypatch.setattr(
-            xhs_mod, "_mcp_service_reachable", lambda timeout=3: mcp_reachable
-        )
+    """小红书只保留 OpenCLI 后端（xhs-cli / xiaohongshu-mcp 已移除）。"""
 
     def test_opencli_bridge_ready_is_unverified(self, monkeypatch):
         monkeypatch.setattr(
@@ -908,269 +843,21 @@ class TestXiaoHongShuChannel:
         assert "桥接已连接" in message
         assert "登录态和实际命令未实时验证" in message
 
-    def test_saved_cli_cookie_is_unverified_not_active(
-        self, monkeypatch, isolated_home
-    ):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-        cookie_path = isolated_home / ".xiaohongshu-cli" / "cookies.json"
-        cookie_path.parent.mkdir()
-        cookie_path.write_text(
-            json.dumps(
-                {"a1": "explicit", "saved_at": __import__("time").time()}
-            ),
-            encoding="utf-8",
-        )
+    def test_reports_off_when_opencli_missing(self, monkeypatch):
         monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "Doctor must not execute xhs status"
-            ),
+            XiaoHongShuChannel, "_check_opencli", lambda self: None
         )
-
-        ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert "未实时验证" in msg
-        assert ch.active_backend is None
-
-    def test_saved_cli_cookie_refuses_ancestor_symlink(
-        self, monkeypatch, isolated_home
-    ):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-        victim_dir = isolated_home / "victim-xhs"
-        victim_dir.mkdir()
-        (victim_dir / "cookies.json").write_text(
-            json.dumps({"a1": "do-not-read"}),
-            encoding="utf-8",
-        )
-        (isolated_home / ".xiaohongshu-cli").symlink_to(
-            victim_dir,
-            target_is_directory=True,
-        )
-
-        status, message = XiaoHongShuChannel()._check_xhs_cli()
-
-        assert status == "warn"
-        assert "符号链接" in message
-
-    def test_reports_warn_when_not_authenticated(self, monkeypatch):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-
-        def fake_run(cmd, **kwargs):
-            return subprocess.CompletedProcess(cmd, 1, "", "ok: false\nerror:\n  code: not_authenticated\n")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
-        ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert "Cookie-Editor" in msg
-        assert "configure xhs-cookies" in msg
-        assert ch.active_backend is None
-
-    def test_reports_off_when_nothing_installed(self, monkeypatch):
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: None)
         ch = XiaoHongShuChannel()
         status, msg = ch.check()
         assert status == "off"
-        # off 指引推荐当代后端，而非停更的 xhs-cli
         assert "opencli" in msg
-        assert "xiaohongshu-mcp" in msg
         assert ch.active_backend is None
 
-    def test_opencli_ready_wins_over_cli(self, monkeypatch):
-        """OpenCLI 完整可用时按序获胜，即使 xhs-cli 也完整可用。"""
-        self._isolate(monkeypatch, opencli=("ok", "OpenCLI 可用（复用浏览器登录态）"))
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-
-        def fake_run(cmd, **kwargs):
-            return subprocess.CompletedProcess(cmd, 0, "ok: true\n", "")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
+    def test_can_handle_xiaohongshu_urls(self):
         ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "ok"
-        assert ch.active_backend == "OpenCLI"
-
-    def test_opencli_warn_remains_first_when_cli_is_only_unverified(
-        self, monkeypatch
-    ):
-        self._isolate(monkeypatch, opencli=("warn", "扩展未连接"))
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-
-        def fake_run(cmd, **kwargs):
-            return subprocess.CompletedProcess(cmd, 0, "ok: true\n", "")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
-        ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert msg == "扩展未连接"
-        assert ch.active_backend is None
-
-    def test_mcp_service_wins_when_opencli_absent(
-        self, monkeypatch, tmp_path
-    ):
-        """服务器场景：OpenCLI 未装、mcp 服务可达且 mcporter 已接入 → mcp 获胜。"""
-        self._isolate(monkeypatch, mcp_reachable=True)
-        monkeypatch.chdir(tmp_path)
-        config_path = tmp_path / "config" / "mcporter.json"
-        config_path.parent.mkdir()
-        config_path.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {"xiaohongshu": {"baseUrl": "http://local"}},
-                    "imports": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-
-        def fake_which(name):
-            return "/usr/local/bin/mcporter" if name == "mcporter" else None
-
-        monkeypatch.setattr(shutil, "which", fake_which)
-        monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "Doctor must not execute mcporter"
-            ),
-        )
-
-        ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert ch.active_backend is None
-        assert "未验证登录态" in msg
-
-    def test_mcp_reachable_but_mcporter_unconfigured_warns(
-        self, monkeypatch, tmp_path
-    ):
-        self._isolate(monkeypatch, mcp_reachable=True)
-        monkeypatch.chdir(tmp_path)
-        config_path = tmp_path / "config" / "mcporter.json"
-        config_path.parent.mkdir()
-        config_path.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {"exa": {"baseUrl": "https://example.test"}},
-                    "imports": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-
-        def fake_which(name):
-            return "/usr/local/bin/mcporter" if name == "mcporter" else None
-
-        monkeypatch.setattr(shutil, "which", fake_which)
-
-        monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "Doctor must not execute mcporter"
-            ),
-        )
-
-        ch = XiaoHongShuChannel()
-        status, msg = ch.check()
-        assert status == "warn"
-        assert "mcporter config add xiaohongshu" in msg
-        assert ch.active_backend is None
-
-    def test_mcp_metadata_containing_xiaohongshu_is_not_configured(
-        self, monkeypatch, tmp_path
-    ):
-        """Paths and URLs are not valid server-name health signals."""
-        self._isolate(monkeypatch, mcp_reachable=True)
-        monkeypatch.chdir(tmp_path)
-        config_path = tmp_path / "config" / "mcporter.json"
-        config_path.parent.mkdir()
-        config_path.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {
-                        "unrelated": {
-                            "baseUrl": "http://xiaohongshu-project.test/mcp"
-                        }
-                    },
-                    "imports": [],
-                }
-            ),
-            encoding="utf-8",
-        )
-        monkeypatch.setattr(
-            shutil,
-            "which",
-            lambda name: "/usr/local/bin/mcporter"
-            if name == "mcporter"
-            else None,
-        )
-        monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda *_args, **_kwargs: pytest.fail(
-                "Doctor must not execute mcporter"
-            ),
-        )
-
-        ch = XiaoHongShuChannel()
-        status, message = ch.check()
-
-        assert status == "warn"
-        assert "未接入" in message
-        assert ch.active_backend is None
-
-    def test_all_xhs_auth_hints_exclude_qr_and_automatic_cookie_read(
-        self, monkeypatch
-    ):
-        """XHS remediation must remain on the explicit Cookie-Editor path."""
-        self._isolate(monkeypatch)
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-        monkeypatch.setattr(
-            subprocess,
-            "run",
-            lambda cmd, **kwargs: subprocess.CompletedProcess(
-                cmd, 1, "", "not_authenticated"
-            ),
-        )
-
-        status, message = XiaoHongShuChannel().check()
-
-        assert status == "warn"
-        assert "Cookie-Editor" in message
-        assert "configure xhs-cookies" in message
-        assert "扫码" not in message
-        assert "自动从浏览器" not in message
-
-    def test_unverified_cli_override_cannot_hide_working_opencli(
-        self, monkeypatch
-    ):
-        self._isolate(monkeypatch, opencli=("ok", "OpenCLI 可用"))
-        monkeypatch.setattr(shutil, "which", lambda _: "/usr/local/bin/xhs")
-
-        def fake_run(cmd, **kwargs):
-            return subprocess.CompletedProcess(cmd, 0, "ok: true\n", "")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-
-        class _Cfg:
-            def get(self, key, default=None):
-                return "xhs-cli" if key == "xiaohongshu_backend" else default
-
-        ch = XiaoHongShuChannel()
-        status, _ = ch.check(_Cfg())
-        assert status == "ok"
-        assert ch.active_backend == "OpenCLI"
+        assert ch.can_handle("https://www.xiaohongshu.com/explore/123")
+        assert ch.can_handle("https://xhslink.com/a/abc")
+        assert not ch.can_handle("https://github.com/user/repo")
 
 
 class TestBilibiliChannel:

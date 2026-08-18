@@ -2,7 +2,7 @@
 """
 Channel base class — platform availability checking.
 
-Each channel represents a platform (YouTube, Twitter, GitHub, etc.)
+Each channel represents a platform (YouTube, GitHub, etc.)
 and provides:
   - can_handle(url) → does this URL belong to this platform?
   - check(config) → is the upstream tool installed and configured?
